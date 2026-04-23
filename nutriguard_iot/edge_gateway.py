@@ -63,7 +63,7 @@ def _build_sensor() -> Any:
         return _MockDHT()
 
     pin = getattr(board, f"D{DHT_GPIO}")
-    return adafruit_dht.DHT11(pin, use_pulseio=False)
+    return adafruit_dht.DHT22(pin, use_pulseio=False)
 
 
 class _MockDHT:
