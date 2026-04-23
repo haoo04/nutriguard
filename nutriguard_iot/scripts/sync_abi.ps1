@@ -1,12 +1,12 @@
-# 从 Windows 开发机将 NutriGuard ABI 同步到树莓派
+# For Windows development machine to sync NutriGuard ABI to Raspberry Pi
 #
-# 用法:
+# Usage:
 #     .\scripts\sync_abi.ps1 -RpiHost pi@nutriguard-rpi.local
 #     .\scripts\sync_abi.ps1 -RpiHost pi@192.168.1.210 -RpiPath /home/pi/nutriguard_iot
 #
-# 前置:
-#     1. 已在开发机执行过 npx hardhat compile (生成 artifacts)
-#     2. 树莓派已开启 SSH, 可用 scp 直连
+# Prerequisites:
+#     1. Run 'npx hardhat compile' in Blockchain directory first (generates artifacts)
+#     2. Raspberry Pi is accessible via SSH, and scp can be used to transfer files
 
 param(
     [Parameter(Mandatory = $true)]
@@ -21,16 +21,19 @@ $repoRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
 $abiSource = Join-Path $repoRoot "Blockchain\artifacts\contracts\NutriGuard.sol\NutriGuard.json"
 
 if (-not (Test-Path $abiSource)) {
-    Write-Error "未找到 ABI 文件: $abiSource`n请先在 Blockchain 目录下运行 npx hardhat compile"
+    Write-Error "Cannot find ABI file: $abiSource"
     exit 1
 }
 
-Write-Host "同步 ABI 到 $RpiHost:$RpiPath/abi/..." -ForegroundColor Cyan
-scp $abiSource "${RpiHost}:${RpiPath}/abi/NutriGuard.json"
+$remotePath = "{0}:{1}/abi/NutriGuard.json" -f $RpiHost, $RpiPath
+
+Write-Host ("Syncing ABI to {0}:{1}/abi/..." -f $RpiHost, $RpiPath)
+
+scp "$abiSource" "$remotePath"
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "ABI 同步完成 ✓" -ForegroundColor Green
+    Write-Host "ABI sync completed"
 } else {
-    Write-Error "scp 失败, 请检查 SSH 配置"
+    Write-Error "scp failed, please check SSH configuration"
     exit 1
 }
