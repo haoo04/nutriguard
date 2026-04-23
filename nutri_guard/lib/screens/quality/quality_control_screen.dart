@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/blockchain_provider.dart';
 import '../../models/product_model.dart';
 import '../../models/quality_model.dart';
+import '../../services/iot_sensor_service.dart';
 import '../../widgets/bottom_navigation.dart';
 
 class QualityControlScreen extends StatefulWidget {
@@ -470,81 +471,206 @@ class _QualityControlScreenState extends State<QualityControlScreen> {
     final humidityController = TextEditingController();
     final weightController = TextEditingController();
     final phController = TextEditingController();
-    
+
+    SensorReading? lastReading;
+    bool isFetching = false;
+    String? fetchError;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Submit Production Data - ${product.name}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: tempController,
-                decoration: const InputDecoration(
-                  labelText: 'Temperature (°C)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: humidityController,
-                decoration: const InputDecoration(
-                  labelText: 'Humidity (%)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: weightController,
-                decoration: const InputDecoration(
-                  labelText: 'Weight (g)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              if (product.category == ProductCategory.beverage) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: phController,
-                  decoration: const InputDecoration(
-                    labelText: 'pH Value',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (tempController.text.isEmpty || 
-                  humidityController.text.isEmpty ||
-                  weightController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all required fields')),
-                );
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> fetchFromIoT() async {
+            setDialogState(() {
+              isFetching = true;
+              fetchError = null;
+            });
+            final service = IoTSensorService();
+            try {
+              final reading = await service.fetchLatest();
+              if (!reading.isUsable) {
+                setDialogState(() {
+                  isFetching = false;
+                  lastReading = reading;
+                  fetchError =
+                      '传感器数据过期 (quality=${reading.quality}), 请检查树莓派';
+                });
                 return;
               }
-              
-              Navigator.of(context).pop();
-              await _submitProductionData(
-                product,
-                double.parse(tempController.text),
-                double.parse(humidityController.text),
-                double.parse(weightController.text),
-                phController.text.isNotEmpty ? double.parse(phController.text) : 0,
-              );
-            },
-            child: const Text('Submit'),
+              setDialogState(() {
+                isFetching = false;
+                lastReading = reading;
+                tempController.text = reading.temperatureC!.round().toString();
+                humidityController.text =
+                    reading.humidityPct!.round().toString();
+              });
+            } catch (err) {
+              setDialogState(() {
+                isFetching = false;
+                fetchError = '$err';
+              });
+            } finally {
+              service.dispose();
+            }
+          }
+
+          return AlertDialog(
+            title: Text('Submit Production Data - ${product.name}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: isFetching ? null : fetchFromIoT,
+                    icon: isFetching
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.sensors),
+                    label: Text(isFetching ? '读取中...' : '从 IoT 设备读取'),
+                  ),
+                  if (lastReading != null || fetchError != null) ...[
+                    const SizedBox(height: 8),
+                    _buildSensorStatus(lastReading, fetchError),
+                  ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: tempController,
+                    decoration: const InputDecoration(
+                      labelText: 'Temperature (°C)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: humidityController,
+                    decoration: const InputDecoration(
+                      labelText: 'Humidity (%)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: weightController,
+                    decoration: const InputDecoration(
+                      labelText: 'Weight (g)',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  if (product.category == ProductCategory.beverage) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: phController,
+                      decoration: const InputDecoration(
+                        labelText: 'pH Value',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (tempController.text.isEmpty ||
+                      humidityController.text.isEmpty ||
+                      weightController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Please fill all required fields')),
+                    );
+                    return;
+                  }
+
+                  Navigator.of(dialogContext).pop();
+                  await _submitProductionData(
+                    product,
+                    double.parse(tempController.text),
+                    double.parse(humidityController.text),
+                    double.parse(weightController.text),
+                    phController.text.isNotEmpty
+                        ? double.parse(phController.text)
+                        : 0,
+                  );
+                },
+                child: const Text('Submit'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSensorStatus(SensorReading? reading, String? error) {
+    if (error != null) {
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                error,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (reading == null) return const SizedBox.shrink();
+    final isOk = reading.isUsable;
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: (isOk ? Colors.green : Colors.orange).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: (isOk ? Colors.green : Colors.orange).withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isOk ? Icons.check_circle : Icons.warning_amber_rounded,
+            color: isOk ? Colors.green : Colors.orange,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '设备: ${reading.deviceId} · 样本数: ${reading.sampleCount}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  '采样时间: ${_formatDateTime(reading.sampledAt)}'
+                  ' · 质量: ${reading.quality}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                ),
+              ],
+            ),
           ),
         ],
       ),
