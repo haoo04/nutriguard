@@ -4,7 +4,7 @@ class AppConfig {
   
   // Blockchain Configuration
   static const String ethereumChainId = '1337'; // Hardhat local network
-  static const String ethereumRpcUrl = 'http://172.20.10.4:8545';
+  static const String ethereumRpcUrl = 'http://192.168.0.16:8545'; //172.20.10.4
   static const String sepoliaRpcUrl = 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY';
   
   // Contract Addresses (will be updated after deployment)
@@ -28,6 +28,11 @@ class AppConfig {
   // Ubidots Configuration
   static const String ubidotsApiUrl = 'https://industrial.api.ubidots.com/api/v1.6';
   static const String ubidotsToken = 'YOUR_UBIDOTS_TOKEN';
+
+  // IoT Edge Gateway (Raspberry Pi + DHT11)
+  // 树莓派运行的 Flask 边缘网关地址, 需与 App 所在手机/模拟器保持同网段
+  static const String iotGatewayBaseUrl = 'http://192.168.0.32:5000';
+  static const Duration iotFetchTimeout = Duration(seconds: 5);
   
   // Firebase Configuration (will be configured in firebase_options.dart)
   

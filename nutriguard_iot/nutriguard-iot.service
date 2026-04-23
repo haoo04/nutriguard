@@ -1,0 +1,20 @@
+[Unit]
+Description=NutriGuard IoT Edge Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/nutriguard_iot
+EnvironmentFile=-/home/pi/nutriguard_iot/.env
+Environment="DEVICE_ID=rpi-nutriguard-01"
+Environment="PORT=5000"
+ExecStart=/home/pi/nutriguard_iot/.venv/bin/python /home/pi/nutriguard_iot/edge_gateway.py
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
