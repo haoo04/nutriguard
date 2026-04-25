@@ -391,24 +391,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _updateEmail(BuildContext context, String email, AuthProvider authProvider) async {
+    // 先在 pop 前抓住 Messenger / Navigator，避免 dialog 关闭后使用失效 context。
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     // Email validation
     if (email.isNotEmpty && !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Please enter a valid email address')),
       );
       return;
     }
 
-    Navigator.of(context).pop(); // Close dialog
+    navigator.pop(); // Close dialog
 
     try {
-      // Update user email through AuthProvider
       await authProvider.updateUserEmail(email.isEmpty ? null : email);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
+
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
-            email.isEmpty 
+            email.isEmpty
                 ? 'Email removed successfully'
                 : 'Email updated successfully',
           ),
@@ -416,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Failed to update email: $e'),
           backgroundColor: Colors.red,
