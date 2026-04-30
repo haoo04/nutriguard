@@ -12,6 +12,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _error;
+  bool _isDisposed = false;
 
   UserModel? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
@@ -126,7 +127,7 @@ class AuthProvider extends ChangeNotifier {
       _setError('区块链用户注册失败: $e');
     }
     
-    notifyListeners();
+    _notifyIfAlive();
   }
 
   UserRole _mapUserRole(wallet.UserRole walletRole) {
@@ -154,7 +155,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       // 更新用户邮箱
       _currentUser = _currentUser!.copyWith(email: email);
-      notifyListeners();
+      _notifyIfAlive();
       
       // 在实际应用中，这里应该同步到后端数据库
       print('🔧 AuthProvider: 用户邮箱已更新: $email');
@@ -198,7 +199,7 @@ class AuthProvider extends ChangeNotifier {
       final credentials = EthPrivateKey.fromHex(privateKeyHex);
       
       // 使用私钥签名消息（web3dart会自动处理以太坊消息格式）
-      final signature = await credentials.signPersonalMessage(ascii.encode(message));
+      final signature = await credentials.signPersonalMessage(utf8.encode(message));
       
       // 将签名转换为十六进制字符串格式
       final signatureHex = '0x${signature.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
@@ -214,16 +215,23 @@ class AuthProvider extends ChangeNotifier {
 
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    _notifyIfAlive();
   }
 
   void _setError(String? error) {
     _error = error;
-    notifyListeners();
+    _notifyIfAlive();
+  }
+
+  void _notifyIfAlive() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     // _walletService.dispose(); // No longer needed
     _blockchainService.dispose();
     super.dispose();

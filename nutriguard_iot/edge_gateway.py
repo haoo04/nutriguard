@@ -52,14 +52,14 @@ log = logging.getLogger("edge_gateway")
 def _build_sensor() -> Any:
     """构造 DHT 读取对象. 当 ``MOCK_SENSOR=1`` 或导入失败时回退到伪实现."""
     if MOCK_SENSOR:
-        log.warning("MOCK_SENSOR=1, 使用伪随机数据 (请仅用于非 RPi 环境调试)")
+        log.warning("MOCK_SENSOR=1, using mock data (please only use for non-RPi environment debugging)")
         return _MockDHT()
 
     try:
         import adafruit_dht
         import board
     except (ImportError, NotImplementedError) as err:
-        log.error(f"导入 adafruit_dht/board 失败, 回退到 Mock: {err}")
+        log.error(f"Import adafruit_dht/board failed, falling back to Mock: {err}")
         return _MockDHT()
 
     pin = getattr(board, f"D{DHT_GPIO}")

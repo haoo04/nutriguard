@@ -17,7 +17,14 @@ class BlockchainProvider extends ChangeNotifier {
   List<ConsumerFeedback> _feedbacks = [];
   List<RecallNotification> _recallNotifications = [];
   bool _isLoading = false;
+  bool _isLoadingSuppliers = false;
+  bool _isLoadingIngredients = false;
+  bool _isLoadingProducts = false;
+  bool _isLoadingConsumerProducts = false;
+  bool _isLoadingFeedbacks = false;
+  int _loadingDepth = 0;
   String? _error;
+  bool _isDisposed = false;
 
   // Getters
   List<SupplierModel> get suppliers => _suppliers;
@@ -26,6 +33,11 @@ class BlockchainProvider extends ChangeNotifier {
   List<ConsumerFeedback> get feedbacks => _feedbacks;
   List<RecallNotification> get recallNotifications => _recallNotifications;
   bool get isLoading => _isLoading;
+  bool get isLoadingSuppliers => _isLoadingSuppliers;
+  bool get isLoadingIngredients => _isLoadingIngredients;
+  bool get isLoadingProducts => _isLoadingProducts;
+  bool get isLoadingConsumerProducts => _isLoadingConsumerProducts;
+  bool get isLoadingFeedbacks => _isLoadingFeedbacks;
   String? get error => _error;
   
   // 提供对blockchain service的访问
@@ -161,6 +173,7 @@ class BlockchainProvider extends ChangeNotifier {
   }
 
   Future<void> loadSuppliers() async {
+    _isLoadingSuppliers = true;
     _setLoading(true);
     _setError(null);
 
@@ -171,7 +184,7 @@ class BlockchainProvider extends ChangeNotifier {
       if (userAddress == null) {
         print('🔧 BlockchainProvider: 用户地址为空');
         _suppliers = [];
-        notifyListeners();
+        _notifyIfAlive();
         return;
       }
 
@@ -181,27 +194,26 @@ class BlockchainProvider extends ChangeNotifier {
       final supplierIds = await _blockchainService.getMerchantSuppliers(userAddress.hex);
       print('🔧 BlockchainProvider: 供应商ID列表: $supplierIds');
       
-      final suppliers = <SupplierModel>[];
-      
-      // 获取每个供应商的详细信息
-      for (final supplierId in supplierIds) {
+      final supplierResults = await Future.wait(supplierIds.map((supplierId) async {
         try {
           print('🔧 BlockchainProvider: 加载供应商 $supplierId');
           final supplier = await _blockchainService.getSupplierInfo(supplierId);
-          suppliers.add(supplier);
           print('🔧 BlockchainProvider: 成功加载供应商: ${supplier.name}');
+          return supplier;
         } catch (e) {
           print('🔧 BlockchainProvider: 加载供应商 $supplierId 失败: $e');
+          return null;
         }
-      }
+      }));
       
-      _suppliers = suppliers;
+      _suppliers = supplierResults.whereType<SupplierModel>().toList();
       print('🔧 BlockchainProvider: 总共加载了 ${_suppliers.length} 个供应商');
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('🔧 BlockchainProvider: 加载供应商列表失败: $e');
       _setError('加载供应商列表失败: $e');
     } finally {
+      _isLoadingSuppliers = false;
       _setLoading(false);
     }
   }
@@ -254,6 +266,7 @@ class BlockchainProvider extends ChangeNotifier {
   }
 
   Future<void> loadIngredients() async {
+    _isLoadingIngredients = true;
     _setLoading(true);
     _setError(null);
 
@@ -264,7 +277,7 @@ class BlockchainProvider extends ChangeNotifier {
       if (userAddress == null) {
         print('🔧 BlockchainProvider: 用户地址为空');
         _ingredients = [];
-        notifyListeners();
+        _notifyIfAlive();
         return;
       }
 
@@ -274,27 +287,26 @@ class BlockchainProvider extends ChangeNotifier {
       final ingredientIds = await _blockchainService.getMerchantIngredients(userAddress.hex);
       print('🔧 BlockchainProvider: 原料ID列表: $ingredientIds');
       
-      final ingredients = <IngredientModel>[];
-      
-      // 获取每个原料的详细信息
-      for (final ingredientId in ingredientIds) {
+      final ingredientResults = await Future.wait(ingredientIds.map((ingredientId) async {
         try {
           print('🔧 BlockchainProvider: 加载原料 $ingredientId');
           final ingredient = await _blockchainService.getIngredientWithSupplier(ingredientId);
-          ingredients.add(ingredient);
           print('🔧 BlockchainProvider: 成功加载原料: ${ingredient.name}');
+          return ingredient;
         } catch (e) {
           print('🔧 BlockchainProvider: 加载原料 $ingredientId 失败: $e');
+          return null;
         }
-      }
+      }));
       
-      _ingredients = ingredients;
+      _ingredients = ingredientResults.whereType<IngredientModel>().toList();
       print('🔧 BlockchainProvider: 总共加载了 ${_ingredients.length} 个原料');
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('🔧 BlockchainProvider: 加载原料列表失败: $e');
       _setError('加载原料列表失败: $e');
     } finally {
+      _isLoadingIngredients = false;
       _setLoading(false);
     }
   }
@@ -389,6 +401,7 @@ class BlockchainProvider extends ChangeNotifier {
   }
 
   Future<void> loadProducts() async {
+    _isLoadingProducts = true;
     _setLoading(true);
     _setError(null);
 
@@ -399,7 +412,7 @@ class BlockchainProvider extends ChangeNotifier {
       if (userAddress == null) {
         print('🔧 BlockchainProvider: 用户地址为空');
         _products = [];
-        notifyListeners();
+        _notifyIfAlive();
         return;
       }
 
@@ -409,32 +422,32 @@ class BlockchainProvider extends ChangeNotifier {
       final productIds = await _blockchainService.getMerchantProducts(userAddress.hex);
       print('🔧 BlockchainProvider: 产品ID列表: $productIds');
       
-      final products = <ProductModel>[];
-      
-      // 获取每个产品的详细信息
-      for (final productId in productIds) {
+      final productResults = await Future.wait(productIds.map((productId) async {
         try {
           print('🔧 BlockchainProvider: 加载产品 $productId');
           final product = await _blockchainService.getProductWithDetails(productId);
-          products.add(product);
           print('🔧 BlockchainProvider: 成功加载产品: ${product.name}');
+          return product;
         } catch (e) {
           print('🔧 BlockchainProvider: 加载产品 $productId 失败: $e');
+          return null;
         }
-      }
+      }));
       
-      _products = products;
+      _products = productResults.whereType<ProductModel>().toList();
       print('🔧 BlockchainProvider: 总共加载了 ${_products.length} 个产品');
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('🔧 BlockchainProvider: 加载产品列表失败: $e');
       _setError('加载产品列表失败: $e');
     } finally {
+      _isLoadingProducts = false;
       _setLoading(false);
     }
   }
 
   Future<void> loadConsumerProducts() async {
+    _isLoadingConsumerProducts = true;
     _setLoading(true);
     _setError(null);
 
@@ -445,7 +458,7 @@ class BlockchainProvider extends ChangeNotifier {
       if (userAddress == null) {
         print('🔧 BlockchainProvider: 用户地址为空');
         _consumerProducts = [];
-        notifyListeners();
+        _notifyIfAlive();
         return;
       }
 
@@ -455,27 +468,26 @@ class BlockchainProvider extends ChangeNotifier {
       final productIds = await _blockchainService.getConsumerProducts(userAddress.hex);
       print('🔧 BlockchainProvider: 消费者产品ID列表: $productIds');
       
-      final products = <ProductModel>[];
-      
-      // 获取每个产品的详细信息
-      for (final productId in productIds) {
+      final productResults = await Future.wait(productIds.map((productId) async {
         try {
           print('🔧 BlockchainProvider: 加载消费者产品 $productId');
           final product = await _blockchainService.getProductWithDetails(productId);
-          products.add(product);
           print('🔧 BlockchainProvider: 成功加载消费者产品: ${product.name}');
+          return product;
         } catch (e) {
           print('🔧 BlockchainProvider: 加载消费者产品 $productId 失败: $e');
+          return null;
         }
-      }
+      }));
       
-      _consumerProducts = products;
+      _consumerProducts = productResults.whereType<ProductModel>().toList();
       print('🔧 BlockchainProvider: 消费者总共加载了 ${_consumerProducts.length} 个产品');
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('🔧 BlockchainProvider: 加载消费者产品列表失败: $e');
       _setError('加载消费者产品列表失败: $e');
     } finally {
+      _isLoadingConsumerProducts = false;
       _setLoading(false);
     }
   }
@@ -606,6 +618,7 @@ class BlockchainProvider extends ChangeNotifier {
   }
 
   Future<void> loadFeedbacks([UserRole? userRole]) async {
+    _isLoadingFeedbacks = true;
     _setLoading(true);
     _setError(null);
 
@@ -616,7 +629,7 @@ class BlockchainProvider extends ChangeNotifier {
       if (userAddress == null) {
         print('🔧 BlockchainProvider: 用户地址为空');
         _feedbacks = [];
-        notifyListeners();
+        _notifyIfAlive();
         return;
       }
 
@@ -633,34 +646,38 @@ class BlockchainProvider extends ChangeNotifier {
         final productIds = await _blockchainService.getMerchantProducts(userAddress.hex);
         print('🔧 BlockchainProvider: 商家产品ID列表: $productIds');
         
-        for (final productId in productIds) {
-          final productFeedbacks = await _blockchainService.getProductFeedbacks(productId);
-          feedbackIds.addAll(productFeedbacks);
-        }
+        final feedbackIdGroups = await Future.wait(productIds.map((productId) async {
+          try {
+            return await _blockchainService.getProductFeedbacks(productId);
+          } catch (e) {
+            print('🔧 BlockchainProvider: 加载产品 $productId 的反馈ID失败: $e');
+            return <int>[];
+          }
+        }));
+        feedbackIds = feedbackIdGroups.expand((ids) => ids).toSet().toList();
         print('🔧 BlockchainProvider: 商家收到的反馈ID列表: $feedbackIds');
       }
       
-      final feedbacks = <ConsumerFeedback>[];
-      
-      // 获取每个反馈的详细信息
-      for (final feedbackId in feedbackIds) {
+      final feedbackResults = await Future.wait(feedbackIds.map((feedbackId) async {
         try {
           print('🔧 BlockchainProvider: 加载反馈 $feedbackId');
           final feedback = await _blockchainService.getFeedback(feedbackId);
-          feedbacks.add(feedback);
           print('🔧 BlockchainProvider: 成功加载反馈: ID $feedbackId');
+          return feedback;
         } catch (e) {
           print('🔧 BlockchainProvider: 加载反馈 $feedbackId 失败: $e');
+          return null;
         }
-      }
+      }));
       
-      _feedbacks = feedbacks;
+      _feedbacks = feedbackResults.whereType<ConsumerFeedback>().toList();
       print('🔧 BlockchainProvider: 总共加载了 ${_feedbacks.length} 个反馈');
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('🔧 BlockchainProvider: 加载反馈列表失败: $e');
       _setError('加载反馈列表失败: $e');
     } finally {
+      _isLoadingFeedbacks = false;
       _setLoading(false);
     }
   }
@@ -797,7 +814,7 @@ class BlockchainProvider extends ChangeNotifier {
     final index = _recallNotifications.indexWhere((n) => n.id == notificationId);
     if (index != -1) {
       _recallNotifications[index] = _recallNotifications[index].copyWith(isRead: true);
-      notifyListeners();
+      _notifyIfAlive();
     }
   }
 
@@ -807,7 +824,7 @@ class BlockchainProvider extends ChangeNotifier {
         _recallNotifications[i] = _recallNotifications[i].copyWith(isRead: true);
       }
     }
-    notifyListeners();
+    _notifyIfAlive();
   }
 
   // 私有辅助方法
@@ -830,13 +847,15 @@ class BlockchainProvider extends ChangeNotifier {
       final affectedProductIds = await _blockchainService.getAffectedProducts(ingredientId);
       
       // 创建召回通知并发送邮件通知
-      for (final productId in affectedProductIds) {
+      final timestamp = DateTime.now();
+      for (var i = 0; i < affectedProductIds.length; i++) {
+        final productId = affectedProductIds[i];
         final notification = RecallNotification(
-          id: '${DateTime.now().millisecondsSinceEpoch}_${productId}',
+          id: '${timestamp.microsecondsSinceEpoch}_${ingredientId}_${productId}_$i',
           ingredientId: ingredientId.toString(),
           productId: productId.toString(),
           reason: reason,
-          timestamp: DateTime.now(),
+          timestamp: timestamp,
           manufacturerAddress: _blockchainService.userAddress?.hex ?? '',
           severity: RecallSeverity.high,
         );
@@ -846,7 +865,7 @@ class BlockchainProvider extends ChangeNotifier {
         await _sendRecallEmailNotifications(productId, notification);
       }
       
-      notifyListeners();
+      _notifyIfAlive();
     } catch (e) {
       print('处理召回通知失败: $e');
     }
@@ -894,21 +913,38 @@ class BlockchainProvider extends ChangeNotifier {
 
   void clearError() {
     _error = null;
-    notifyListeners();
+    _notifyIfAlive();
   }
 
   void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
+    if (loading) {
+      _loadingDepth++;
+    } else if (_loadingDepth > 0) {
+      _loadingDepth--;
+    }
+
+    final isLoading = _loadingDepth > 0;
+    if (_isLoading == isLoading && !_isDisposed) {
+      return;
+    }
+    _isLoading = isLoading;
+    _notifyIfAlive();
   }
 
   void _setError(String? error) {
     _error = error;
-    notifyListeners();
+    _notifyIfAlive();
+  }
+
+  void _notifyIfAlive() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _blockchainService.dispose();
     super.dispose();
   }

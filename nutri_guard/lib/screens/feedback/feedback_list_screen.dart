@@ -30,28 +30,37 @@ class _FeedbackListScreenState extends State<FeedbackListScreen> {
     try {
       final authProvider = context.read<AuthProvider>();
       final blockchainProvider = context.read<BlockchainProvider>();
-      
+
       if (authProvider.currentUser != null) {
         final user = authProvider.currentUser!;
-        
-        // Load feedbacks based on user role
-        await blockchainProvider.loadFeedbacks(user.role);
-        
-        // Get the feedbacks from provider
+
+        // Load feedbacks + products 并行，确保反馈卡片能显示产品名。
+        await Future.wait([
+          blockchainProvider.loadFeedbacks(user.role),
+          if (blockchainProvider.products.isEmpty) blockchainProvider.loadProducts(),
+        ]);
+
         final feedbacks = blockchainProvider.feedbacks;
-        
+        final productMap = <String, ProductModel>{
+          for (final p in blockchainProvider.products) p.id: p,
+        };
+
+        if (!mounted) return;
         setState(() {
           _feedbacks = feedbacks;
+          _products = productMap;
           _isLoading = false;
         });
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load feedbacks: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load feedbacks: $e')),
+      );
     }
   }
 

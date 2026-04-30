@@ -16,7 +16,7 @@ class QRScannerScreen extends StatefulWidget {
 }
 
 class _QRScannerScreenState extends State<QRScannerScreen> {
-  MobileScannerController cameraController = MobileScannerController();
+  final MobileScannerController cameraController = MobileScannerController();
   bool isScanning = true;
 
   @override
@@ -125,6 +125,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void _handleQRCode(String qrData) {
+    if (!mounted) return;
     setState(() {
       isScanning = false;
     });
@@ -165,6 +166,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         productId: productId,
         onClose: () {
           Navigator.of(context).pop();
+          if (!mounted) return;
           setState(() {
             isScanning = true;
           });
@@ -187,6 +189,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
+              if (!mounted) return;
               setState(() {
                 isScanning = true;
               });
@@ -365,12 +368,14 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
       final blockchainProvider = context.read<BlockchainProvider>();
       final product = await blockchainProvider.blockchainService
           .getProductWithDetails(int.parse(widget.productId));
-      
+
+      if (!mounted) return;
       setState(() {
         _product = product;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load product: $e';
         _isLoading = false;
@@ -681,6 +686,7 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
     });
 
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final blockchainProvider = context.read<BlockchainProvider>();
       final authProvider = context.read<AuthProvider>();
       
@@ -689,7 +695,7 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
       
       // 检查用户是否设置了邮箱
       if (userEmail.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Please set your email address in Profile settings first'),
             backgroundColor: Colors.orange,
@@ -707,8 +713,9 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
         email: userEmail,
       );
 
+      if (!mounted) return;
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Successfully registered product to your account!'),
             backgroundColor: Colors.green,
@@ -716,7 +723,7 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
         );
         widget.onClose();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Registration failed: ${blockchainProvider.error}'),
             backgroundColor: Colors.red,
@@ -724,6 +731,7 @@ class _ProductInfoDialogState extends State<_ProductInfoDialog> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Registration error: $e'),
