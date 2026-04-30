@@ -17,6 +17,7 @@ class _MyAlertsScreenState extends State<MyAlertsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final user = context.read<AuthProvider>().currentUser;
       if (user != null) {
         context.read<BlockchainProvider>().refreshAllData(user.role);
@@ -38,10 +39,16 @@ class _MyAlertsScreenState extends State<MyAlertsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final user = authProvider.currentUser;
           final notifications = blockchainProvider.recallNotifications;
+          final registeredProductIds = user?.isConsumer == true
+              ? blockchainProvider
+                  .getConsumerProducts(user!.walletAddress)
+                  .map((product) => product.id)
+                  .toSet()
+              : <String>{};
           final userNotifications = notifications.where((notification) {
-            // Filter notifications for current user if needed
-            return true; // For now, show all notifications
+            return registeredProductIds.contains(notification.productId);
           }).toList();
 
           if (userNotifications.isEmpty) {
@@ -49,7 +56,7 @@ class _MyAlertsScreenState extends State<MyAlertsScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => blockchainProvider.refreshAllData(),
+            onRefresh: () => blockchainProvider.refreshAllData(user?.role),
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: userNotifications.length,

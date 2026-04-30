@@ -32,18 +32,33 @@ class BottomNavigation extends StatelessWidget {
     '/profile',
   ];
 
+  static final _merchantLastLocations = <int, String>{};
+  static final _consumerLastLocations = <int, String>{};
+
+  Map<int, String> _lastLocations(bool isMerchant) {
+    return isMerchant ? _merchantLastLocations : _consumerLastLocations;
+  }
+
+  int _indexForLocation(String location, List<String> routes) {
+    for (var i = 0; i < routes.length; i++) {
+      if (location == routes[i] || location.startsWith('${routes[i]}/')) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   int _deriveIndex(BuildContext context, bool isMerchant) {
     final location = GoRouterState.of(context).matchedLocation;
     final routes = isMerchant ? _merchantRoutes : _consumerRoutes;
 
     // 使用 startsWith，让 /products/123 这类子路由仍能高亮到 /products 所在 tab。
     // 同时排除 '/dashboard' 的前缀冲突——这里所有根路由都不是彼此前缀，不会有歧义。
-    for (var i = 0; i < routes.length; i++) {
-      if (location == routes[i] || location.startsWith('${routes[i]}/')) {
-        return i;
-      }
+    final index = _indexForLocation(location, routes);
+    if (index != -1) {
+      _lastLocations(isMerchant)[index] = location;
     }
-    return -1; // 非 tab 页：不选中任何 item
+    return index; // 非 tab 页返回 -1：不选中任何 item
   }
 
   @override
@@ -128,6 +143,10 @@ class BottomNavigation extends StatelessWidget {
   void _onTap(BuildContext context, int index, bool isMerchant) {
     final routes = isMerchant ? _merchantRoutes : _consumerRoutes;
     if (index < 0 || index >= routes.length) return;
-    context.go(routes[index]);
+
+    final location = GoRouterState.of(context).matchedLocation;
+    if (_indexForLocation(location, routes) == index) return;
+
+    context.go(_lastLocations(isMerchant)[index] ?? routes[index]);
   }
 }

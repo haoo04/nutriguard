@@ -62,19 +62,19 @@ class IoTSensorService {
       final resp = await _client.get(uri).timeout(AppConfig.iotFetchTimeout);
       if (resp.statusCode != 200) {
         throw IoTGatewayException(
-          '网关响应异常: HTTP ${resp.statusCode}',
+          'Gateway response exception: HTTP ${resp.statusCode}',
           statusCode: resp.statusCode,
         );
       }
       final decoded = jsonDecode(resp.body);
       if (decoded is! Map<String, dynamic>) {
-        throw IoTGatewayException('网关返回的 JSON 结构无法解析');
+        throw IoTGatewayException('Gateway returned JSON structure cannot be parsed');
       }
       return SensorReading.fromJson(decoded);
     } on IoTGatewayException {
       rethrow;
     } catch (err) {
-      throw IoTGatewayException('无法连接到 IoT 网关 $uri: $err');
+      throw IoTGatewayException('Cannot connect to IoT gateway $uri: $err');
     }
   }
 

@@ -42,19 +42,19 @@ class _IngredientDetailScreenState extends State<IngredientDetailScreen> {
       } catch (e) {
         print('Error loading supplier: $e');
       }
-      
+
+      if (!mounted) return;
       setState(() {
         _ingredient = ingredient;
         _supplier = supplier;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load ingredient: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load ingredient: $e')),
+      );
     }
   }
 
@@ -104,7 +104,7 @@ class _IngredientDetailScreenState extends State<IngredientDetailScreen> {
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: Color(int.parse(_ingredient!.statusColor.substring(1), radix: 16) + 0xFF000000),
+              backgroundColor: _parseStatusColor(_ingredient!.statusColor),
               child: Icon(
                 _ingredient!.isRecalled || _ingredient!.isContaminated
                     ? Icons.warning
@@ -133,13 +133,13 @@ class _IngredientDetailScreenState extends State<IngredientDetailScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Color(int.parse(_ingredient!.statusColor.substring(1), radix: 16) + 0x33000000),
+                      color: _parseStatusColor(_ingredient!.statusColor).withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       _ingredient!.statusText,
                       style: TextStyle(
-                        color: Color(int.parse(_ingredient!.statusColor.substring(1), radix: 16) + 0xFF000000),
+                        color: _parseStatusColor(_ingredient!.statusColor),
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -690,5 +690,20 @@ class _IngredientDetailScreenState extends State<IngredientDetailScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Color _parseStatusColor(String value) {
+    final hex = value.startsWith('#') ? value.substring(1) : value;
+    try {
+      if (hex.length == 6) {
+        return Color(int.parse('FF$hex', radix: 16));
+      }
+      if (hex.length == 8) {
+        return Color(int.parse(hex, radix: 16));
+      }
+    } catch (_) {
+      // Invalid color values should not break the detail page.
+    }
+    return Colors.grey;
   }
 }

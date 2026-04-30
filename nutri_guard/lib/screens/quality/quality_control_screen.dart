@@ -493,7 +493,7 @@ class _QualityControlScreenState extends State<QualityControlScreen> {
                   isFetching = false;
                   lastReading = reading;
                   fetchError =
-                      '传感器数据过期 (quality=${reading.quality}), 请检查树莓派';
+                      'Sensor data is stale (quality=${reading.quality}), Please check the Raspberry Pi';
                 });
                 return;
               }
@@ -531,7 +531,7 @@ class _QualityControlScreenState extends State<QualityControlScreen> {
                                 CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.sensors),
-                    label: Text(isFetching ? '读取中...' : '从 IoT 设备读取'),
+                    label: Text(isFetching ? 'Fetching...' : 'Fetch from IoT device'),
                   ),
                   if (lastReading != null || fetchError != null) ...[
                     const SizedBox(height: 8),
@@ -661,12 +661,12 @@ class _QualityControlScreenState extends State<QualityControlScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '设备: ${reading.deviceId} · 样本数: ${reading.sampleCount}',
+                  'Device: ${reading.deviceId} · Sample count: ${reading.sampleCount}',
                   style: const TextStyle(fontSize: 12),
                 ),
                 Text(
-                  '采样时间: ${_formatDateTime(reading.sampledAt)}'
-                  ' · 质量: ${reading.quality}',
+                  'Sampling time: ${_formatDateTime(reading.sampledAt)}'
+                  ' · Quality: ${reading.quality}',
                   style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],
