@@ -4,8 +4,13 @@ class AppConfig {
   
   // Blockchain Configuration
   static const String ethereumChainId = '1337'; // Hardhat local network
-  static const String ethereumRpcUrl = 'http://172.20.10.4:8545';
+  static const String ethereumRpcUrl = 'http://172.20.10.4:8545'; //172.20.10.4
   static const String sepoliaRpcUrl = 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY';
+
+  // IoT Edge Gateway (Raspberry Pi + DHT11)
+  // Raspberry Pi running Flask edge gateway address, needs to be in the same network as the App phone/simulator
+  static const String iotGatewayBaseUrl = 'http://172.20.10.2:5000';
+  static const Duration iotFetchTimeout = Duration(seconds: 5);
   
   // Contract Addresses (will be updated after deployment)
   static const String nutriGuardContractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';

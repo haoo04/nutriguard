@@ -5,26 +5,86 @@ import '../providers/auth_provider.dart';
 import '../models/user_model.dart';
 
 class BottomNavigation extends StatelessWidget {
-  final int currentIndex;
+  /// 已废弃：高亮位以当前路由为准，保留仅为兼容旧调用点，不再生效。
+  @Deprecated('currentIndex 已按当前路由自动识别，传入值会被忽略。')
+  final int? currentIndex;
 
   const BottomNavigation({
     super.key,
-    required this.currentIndex,
+    @Deprecated('currentIndex 已按当前路由自动识别，传入值会被忽略。')
+    this.currentIndex,
   });
+
+  // 路由 -> tab index 的映射，保持与 _onTap 一致。
+  static const _merchantRoutes = <String>[
+    '/dashboard',
+    '/ingredients',
+    '/products',
+    '/qr-scanner',
+    '/profile',
+  ];
+
+  static const _consumerRoutes = <String>[
+    '/dashboard',
+    '/qr-scanner',
+    '/my-alerts',
+    '/my-feedback',
+    '/profile',
+  ];
+
+  static final _merchantLastLocations = <int, String>{};
+  static final _consumerLastLocations = <int, String>{};
+
+  Map<int, String> _lastLocations(bool isMerchant) {
+    return isMerchant ? _merchantLastLocations : _consumerLastLocations;
+  }
+
+  int _indexForLocation(String location, List<String> routes) {
+    for (var i = 0; i < routes.length; i++) {
+      if (location == routes[i] || location.startsWith('${routes[i]}/')) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  int _deriveIndex(BuildContext context, bool isMerchant) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final routes = isMerchant ? _merchantRoutes : _consumerRoutes;
+
+    // 使用 startsWith，让 /products/123 这类子路由仍能高亮到 /products 所在 tab。
+    // 同时排除 '/dashboard' 的前缀冲突——这里所有根路由都不是彼此前缀，不会有歧义。
+    final index = _indexForLocation(location, routes);
+    if (index != -1) {
+      _lastLocations(isMerchant)[index] = location;
+    }
+    return index; // 非 tab 页返回 -1：不选中任何 item
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         final isMerchant = authProvider.currentUser?.role == UserRole.merchant;
-        
+        final items = _getNavigationItems(isMerchant);
+        final derived = _deriveIndex(context, isMerchant);
+
+        // BottomNavigationBar 的 currentIndex 必须在 [0, items.length) 范围内；
+        // 超出范围时传 0 并靠 selectedItemColor == unselectedItemColor 来“去高亮”。
+        final safeIndex = (derived >= 0 && derived < items.length) ? derived : 0;
+        final hasActiveTab = derived >= 0 && derived < items.length;
+
+        final selectedColor = hasActiveTab
+            ? Theme.of(context).colorScheme.primary
+            : Colors.grey;
+
         return BottomNavigationBar(
-          currentIndex: currentIndex,
+          currentIndex: safeIndex,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: Theme.of(context).colorScheme.primary,
+          selectedItemColor: selectedColor,
           unselectedItemColor: Colors.grey,
           onTap: (index) => _onTap(context, index, isMerchant),
-          items: _getNavigationItems(isMerchant),
+          items: items,
         );
       },
     );
@@ -32,7 +92,6 @@ class BottomNavigation extends StatelessWidget {
 
   List<BottomNavigationBarItem> _getNavigationItems(bool isMerchant) {
     if (isMerchant) {
-      // Merchant navigation items
       return const [
         BottomNavigationBarItem(
           icon: Icon(Icons.dashboard),
@@ -56,7 +115,6 @@ class BottomNavigation extends StatelessWidget {
         ),
       ];
     } else {
-      // Consumer navigation items
       return const [
         BottomNavigationBarItem(
           icon: Icon(Icons.dashboard),
@@ -83,47 +141,12 @@ class BottomNavigation extends StatelessWidget {
   }
 
   void _onTap(BuildContext context, int index, bool isMerchant) {
-    if (isMerchant) {
-      // Merchant navigation
-      switch (index) {
-        case 0:
-          context.go('/dashboard');
-          break;
-        case 1:
-          context.go('/ingredients');
-          break;
-        case 2:
-          context.go('/products');
-          break;
-        case 3:
-          context.go('/qr-scanner');
-          break;
-        case 4:
-          context.go('/profile');
-          break;
-      }
-    } else {
-      // Consumer navigation
-      switch (index) {
-        case 0:
-          context.go('/dashboard');
-          break;
-        case 1:
-          context.go('/qr-scanner');
-          break;
-        case 2:
-          context.go('/my-alerts');
-          break;
-        case 3:
-          context.go('/my-feedback');
-          break;
-        case 4:
-          context.go('/profile');
-          break;
-      }
-    }
+    final routes = isMerchant ? _merchantRoutes : _consumerRoutes;
+    if (index < 0 || index >= routes.length) return;
+
+    final location = GoRouterState.of(context).matchedLocation;
+    if (_indexForLocation(location, routes) == index) return;
+
+    context.go(_lastLocations(isMerchant)[index] ?? routes[index]);
   }
 }
-
-
-

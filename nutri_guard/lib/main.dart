@@ -24,31 +24,54 @@ import 'screens/profile/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize services here if needed
-  
+
   runApp(const NutriGuardApp());
 }
 
-class NutriGuardApp extends StatelessWidget {
+class NutriGuardApp extends StatefulWidget {
   const NutriGuardApp({super.key});
+
+  @override
+  State<NutriGuardApp> createState() => _NutriGuardAppState();
+}
+
+class _NutriGuardAppState extends State<NutriGuardApp> {
+  late final AuthProvider _authProvider;
+  late final BlockchainProvider _blockchainProvider;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _authProvider = AuthProvider();
+    _blockchainProvider = BlockchainProvider();
+    _router = _buildRouter(_authProvider);
+
+    // 触发一次区块链服务初始化；失败由 Provider 自行暴露 error。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _authProvider.initialize();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authProvider.dispose();
+    _blockchainProvider.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => BlockchainProvider()),
+        ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
+        ChangeNotifierProvider<BlockchainProvider>.value(value: _blockchainProvider),
       ],
-      child: Consumer<AuthProvider>(
-        builder: (context, authProvider, _) {
-          return MaterialApp.router(
-            title: AppConfig.appName,
-            debugShowCheckedModeBanner: false,
-            theme: _buildTheme(),
-            routerConfig: _buildRouter(authProvider),
-          );
-        },
+      child: MaterialApp.router(
+        title: AppConfig.appName,
+        debugShowCheckedModeBanner: false,
+        theme: _buildTheme(),
+        routerConfig: _router,
       ),
     );
   }
@@ -84,9 +107,10 @@ class NutriGuardApp extends StatelessWidget {
   GoRouter _buildRouter(AuthProvider authProvider) {
     return GoRouter(
       initialLocation: '/login',
+      refreshListenable: authProvider,
       redirect: (context, state) {
         final isLoggedIn = authProvider.isAuthenticated;
-        final isLoggingIn = state.fullPath == '/login';
+        final isLoggingIn = state.matchedLocation == '/login';
 
         if (!isLoggedIn && !isLoggingIn) {
           return '/login';

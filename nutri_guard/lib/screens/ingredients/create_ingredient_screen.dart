@@ -62,31 +62,35 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
         final supplierIds = await blockchainProvider.blockchainService
             .getMerchantSuppliers(authProvider.currentUser!.walletAddress);
         
-        final suppliers = <SupplierModel>[];
-        for (final id in supplierIds) {
+        final supplierResults = await Future.wait(supplierIds.map((id) async {
           try {
             final supplier = await blockchainProvider.blockchainService
                 .getSupplierInfo(id);
             if (supplier.isActive) {
-              suppliers.add(supplier);
+              return supplier;
             }
+            return null;
           } catch (e) {
             print('Error loading supplier $id: $e');
+            return null;
           }
-    }
+        }));
 
-    setState(() {
-          _suppliers = suppliers;
+        if (!mounted) return;
+        setState(() {
+          _suppliers = supplierResults.whereType<SupplierModel>().toList();
           _isLoadingSuppliers = false;
         });
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoadingSuppliers = false);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoadingSuppliers = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load suppliers: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load suppliers: $e')),
+      );
     }
   }
 
@@ -680,13 +684,15 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
           builder: (context) => const BarcodeScannerScreen(),
         ),
       );
-      
+
+      if (!mounted) return;
       if (result != null) {
         setState(() {
           _upcController.text = result;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to scan barcode: $e')),
       );
@@ -788,7 +794,8 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
-  MobileScannerController controller = MobileScannerController();
+  final MobileScannerController controller = MobileScannerController();
+  bool _handled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -801,9 +808,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       body: MobileScanner(
         controller: controller,
         onDetect: (capture) {
+          if (_handled) return;
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
+              _handled = true;
               Navigator.of(context).pop(barcode.rawValue);
               return;
             }
