@@ -1,5 +1,13 @@
 require("@nomicfoundation/hardhat-toolbox");
 
+try {
+  require("dotenv").config();
+} catch (error) {
+  if (error.code !== "MODULE_NOT_FOUND") {
+    throw error;
+  }
+}
+
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
@@ -19,11 +27,14 @@ module.exports = {
     localhost: {
       url: "http://172.20.10.4:8545",
     },
-    // 可以添加其他网络配置，如Sepolia测试网 10.10.17.232  172.20.10.4
     sepolia: {
-      url: "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
-      accounts: [], // 在这里添加私钥或使用环境变量
+      url: process.env.SEPOLIA_RPC_URL || "",
+      chainId: 11155111,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
     },
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
   },
   paths: {
     sources: "./contracts",
