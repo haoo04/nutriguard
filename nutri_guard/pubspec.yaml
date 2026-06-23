@@ -73,6 +73,7 @@ dependencies:
   # Permissions
   permission_handler: ^11.1.0
   reown_appkit: ^1.0.1
+  image_picker: ^1.2.2
 
 dev_dependencies:
   flutter_test:

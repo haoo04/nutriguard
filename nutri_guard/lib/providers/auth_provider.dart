@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../models/user_model.dart';
 import '../services/blockchain_service.dart';
+import '../services/enhanced_wallet_service.dart';
 import '../models/wallet_model.dart' as wallet;
 import '../config/app_config.dart';
 import 'package:web3dart/web3dart.dart';
@@ -69,6 +70,83 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  Future<void> loginWithMetaMask(
+    wallet.UserRole userRole,
+    EnhancedWalletService walletService,
+  ) async {
+    print('开始使用 MetaMask 登录...');
+    _setLoading(true);
+    _setError(null);
+
+    try {
+      await _blockchainService.initialize();
+      await walletService.ensureSepoliaSelected();
+
+      final address = walletService.connectedAddress;
+      if (address == null) {
+        throw Exception('未检测到已连接的钱包地址');
+      }
+
+      final message = _buildLoginMessage(address);
+      final signature = await walletService.signLoginMessage(message);
+      if (signature.isEmpty) {
+        throw Exception('MetaMask 签名失败');
+      }
+
+      _blockchainService.setExternalWalletAddress(address);
+
+      final expectedRole = _mapUserRole(userRole);
+      final isRegistered = await _blockchainService.isUserRegistered(address);
+
+      if (!isRegistered) {
+        final contractRoleIndex = expectedRole == UserRole.consumer ? 0 : 1;
+        final txHash = await walletService.registerUser(contractRoleIndex);
+        await _blockchainService.waitForTransactionReceipt(txHash);
+      } else {
+        final existingRole = await _blockchainService.getUserRole(address);
+        if (existingRole != expectedRole) {
+          throw Exception('该钱包已注册为 ${existingRole.name}，请选择正确角色登录');
+        }
+      }
+
+      _currentUser = UserModel(
+        id: address.toLowerCase(),
+        walletAddress: address,
+        role: expectedRole,
+        isVerified: true,
+        createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
+        displayName: '${_getRoleDisplayName(userRole)} ${address.substring(0, 6)}...',
+        metadata: {
+          'walletType': wallet.WalletType.metamask.name,
+          'chainId': walletService.selectedChainId,
+          'loginSignature': signature,
+        },
+      );
+
+      print('MetaMask 登录成功: $address');
+      _notifyIfAlive();
+    } catch (e) {
+      print('MetaMask 登录失败: $e');
+      _currentUser = null;
+      _setError('MetaMask 登录失败: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  String _buildLoginMessage(String walletAddress) {
+    return '''
+NutriGuard Login
+
+Wallet: $walletAddress
+Chain ID: ${AppConfig.ethereumChainId}
+Issued At: ${DateTime.now().toUtc().toIso8601String()}
+Purpose: Sign in to NutriGuard
+''';
   }
 
   Future<void> _createOrLoadUser(String walletAddress, wallet.UserRole userRole) async {

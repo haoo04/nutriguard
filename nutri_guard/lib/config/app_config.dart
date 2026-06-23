@@ -3,8 +3,8 @@ class AppConfig {
   static const String appVersion = '1.0.0';
   
   // Blockchain Configuration
-  static const String ethereumChainId = '1337'; // Hardhat local network
-  static const String ethereumRpcUrl = 'http://172.20.10.4:8545'; //172.20.10.4
+  static const String ethereumChainId = '11155111'; // Sepolia test network
+  static const String ethereumRpcUrl = 'http://172.20.10.4:8545';
   static const String sepoliaRpcUrl = 'https://sepolia.infura.io/v3/YOUR_INFURA_KEY';
 
   // IoT Edge Gateway (Raspberry Pi + DHT11)
@@ -13,7 +13,7 @@ class AppConfig {
   static const Duration iotFetchTimeout = Duration(seconds: 5);
   
   // Contract Addresses (will be updated after deployment)
-  static const String nutriGuardContractAddress = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  static const String nutriGuardContractAddress = '0xC1707AAa3b0dc69438c0122E4985586A811011c1';
   
   // Preset Local Accounts (from Hardhat)
   static const Map<String, Map<String, String>> presetAccounts = {
@@ -28,13 +28,17 @@ class AppConfig {
   };
 
   // WalletConnect Configuration
-  static const String walletConnectProjectId = '4c70563ddbc2c6d08619a256b0ec1793';
-  
+  static const String walletConnectProjectId = 'YOUR_PROJECT_ID';
+  static const String walletConnectRedirectNative = 'nutriguard://';
+
+  // Pinata IPFS Configuration
+  static const String pinataJwt = String.fromEnvironment('PINATA_JWT');
+  static const String pinataUploadUrl = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
+  static const String pinataGatewayBaseUrl = 'https://YOUR_BASEURL/ipfs';
+
   // Ubidots Configuration
   static const String ubidotsApiUrl = 'https://industrial.api.ubidots.com/api/v1.6';
   static const String ubidotsToken = 'YOUR_UBIDOTS_TOKEN';
-  
-  // Firebase Configuration (will be configured in firebase_options.dart)
   
   // Quality Standards
   static const Map<String, Map<String, double>> qualityStandards = {
@@ -66,7 +70,7 @@ class AppConfig {
   
   // Environment
   static const bool isDevelopment = true;
-  static const bool useLocalBlockchain = true;
+  static const bool useLocalBlockchain = false;
 }
 
 

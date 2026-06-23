@@ -1,10 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../providers/blockchain_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/supplier_model.dart';
+import '../../services/pinata_ipfs_service.dart';
 
 class CreateIngredientScreen extends StatefulWidget {
   const CreateIngredientScreen({super.key});
@@ -29,6 +33,8 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
   DateTime? _expiryDate;
   int? _selectedSupplierId;
   List<SupplierModel> _suppliers = [];
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   bool _isSubmitting = false;
   bool _isLoadingSuppliers = true;
 
@@ -112,6 +118,8 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
               _buildHeaderSection(),
               const SizedBox(height: 24),
               _buildBasicInfoSection(),
+              const SizedBox(height: 24),
+              _buildImageUploadSection(),
               const SizedBox(height: 24),
               _buildSupplierSection(),
               const SizedBox(height: 24),
@@ -287,6 +295,80 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
                         },
                   ),
                 ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageUploadSection() {
+    final hasImage = _selectedImageBytes != null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.image_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Optional IPFS Image',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select an ingredient image to upload to Pinata IPFS before writing the ingredient on-chain.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (hasImage) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  _selectedImageBytes!,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _selectedImage?.name ?? 'Selected image',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting ? null : _pickImage,
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(hasImage ? 'Change Image' : 'Choose Image'),
+                  ),
+                ),
+                if (hasImage) ...[
+                  const SizedBox(width: 12),
+                  IconButton.outlined(
+                    onPressed: _isSubmitting ? null : _clearImage,
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Remove image',
+                  ),
+                ],
               ],
             ),
           ],
@@ -737,8 +819,7 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
 
       final blockchainProvider = context.read<BlockchainProvider>();
       
-      // Mock IPFS hash (in real implementation, upload to IPFS)
-      final ipfsHash = 'QmHash${DateTime.now().millisecondsSinceEpoch}';
+      final ipfsHash = await _resolveIpfsHash();
 
       await blockchainProvider.blockchainService.registerIngredient(
         name: _nameController.text.trim(),
@@ -779,6 +860,46 @@ class _CreateIngredientScreenState extends State<CreateIngredientScreen> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+
+    if (image == null) {
+      return;
+    }
+
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+
+    setState(() {
+      _selectedImage = image;
+      _selectedImageBytes = bytes;
+    });
+  }
+
+  void _clearImage() {
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+    });
+  }
+
+  Future<String> _resolveIpfsHash() async {
+    final image = _selectedImage;
+    if (image == null) {
+      return '';
+    }
+
+    return PinataIpfsService().uploadImage(
+      image: image,
+      name: 'ingredient-${_upcController.text.trim()}-${DateTime.now().millisecondsSinceEpoch}',
+    );
   }
 
   String _formatDate(DateTime date) {
