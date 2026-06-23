@@ -1,8 +1,10 @@
 # NutriGuard IoT (Raspberry Pi 3B+ × DHT11)
 
-边缘网关 + 可选直连上链脚本, 配合主仓库 Flutter App 与 Hardhat 智能合约, 实现「温湿度自动采集 → 上链 → App 可视化」端到端 Demo.
+<p align="center">
+  <strong>中文</strong> | <a href="README_EN.md">English</a>
+</p>
 
-详细设计见 `../docx/树莓派_DHT11_自动化开发文档.md`.
+边缘网关 + 可选直连上链脚本, 配合主仓库 Flutter App 与 Hardhat 智能合约, 实现「温湿度自动采集 → 上链 → App 可视化」端到端 Demo.
 
 ---
 
