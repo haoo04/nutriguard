@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/app_config.dart';
 import '../../models/wallet_model.dart' as wallet;
+import '../../services/enhanced_wallet_service.dart';
 
 class EnhancedLoginScreen extends StatefulWidget {
   const EnhancedLoginScreen({super.key});
@@ -13,16 +14,44 @@ class EnhancedLoginScreen extends StatefulWidget {
 }
 
 class _EnhancedLoginScreenState extends State<EnhancedLoginScreen> {
+  final EnhancedWalletService _walletService = EnhancedWalletService();
   wallet.UserRole _selectedRole = wallet.UserRole.consumer;
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _showCredentialFields = false;
 
   @override
+  void initState() {
+    super.initState();
+    _walletService.addListener(_handleWalletChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _walletService.initialize(context);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Wallet initialization failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _walletService.removeListener(_handleWalletChanged);
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _handleWalletChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -136,25 +165,12 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen> {
         const SizedBox(height: 16),
         _buildRoleSelector(),
         const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: authProvider.isLoading ? null : _connectWithPresetAccount,
-            icon: authProvider.isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.login),
-            label: const Text('Connect Wallet'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
+        _buildMetaMaskControls(authProvider),
+        if (AppConfig.isDevelopment) ...[
+          const SizedBox(height: 16),
+          const Divider(),
+          _buildLocalPresetControls(authProvider),
+        ],
         if (authProvider.error != null) ...[
           const SizedBox(height: 16),
           Text(
@@ -162,7 +178,104 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen> {
             style: const TextStyle(color: Colors.red),
             textAlign: TextAlign.center,
           ),
+        ],
+        if (_walletService.lastError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _walletService.lastError!,
+            style: const TextStyle(color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
         ]
+      ],
+    );
+  }
+
+  Widget _buildMetaMaskControls(AuthProvider authProvider) {
+    final isWalletReady = _walletService.isInitialized;
+    final isWalletConnected = _walletService.isConnected;
+    final address = _walletService.connectedAddress;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: !isWalletReady || authProvider.isLoading
+              ? null
+              : _walletService.openModal,
+          icon: Icon(isWalletConnected ? Icons.account_balance_wallet : Icons.link),
+          label: Text(
+            isWalletConnected && address != null
+                ? 'Connected: ${_shortAddress(address)}'
+                : _walletService.isInitializing
+                    ? 'Initializing wallet...'
+                    : 'Connect MetaMask',
+          ),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: authProvider.isLoading || !isWalletConnected
+                ? null
+                : _connectWithMetaMask,
+            icon: authProvider.isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.login),
+            label: const Text('Sign in with MetaMask'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+        if (isWalletConnected)
+          TextButton(
+            onPressed: authProvider.isLoading ? null : _walletService.disconnect,
+            child: const Text('Disconnect wallet'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLocalPresetControls(AuthProvider authProvider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextButton.icon(
+          onPressed: authProvider.isLoading
+              ? null
+              : () {
+                  setState(() {
+                    _showCredentialFields = !_showCredentialFields;
+                  });
+                },
+          icon: const Icon(Icons.developer_mode),
+          label: Text(
+            _showCredentialFields
+                ? 'Hide local test login'
+                : 'Use local preset account',
+          ),
+        ),
+        if (_showCredentialFields && _selectedRole == wallet.UserRole.merchant) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: authProvider.isLoading ? null : _connectWithPresetAccount,
+              icon: const Icon(Icons.login),
+              label: const Text('Login with local preset account'),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -179,7 +292,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen> {
           onSelectionChanged: (Set<wallet.UserRole> newSelection) {
             setState(() {
               _selectedRole = newSelection.first;
-              _showCredentialFields = _selectedRole == wallet.UserRole.merchant;
+              _showCredentialFields = false;
               // 清空输入字段
               _usernameController.clear();
               _passwordController.clear();
@@ -211,6 +324,25 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen> {
         ],
       ],
     );
+  }
+
+  String _shortAddress(String address) {
+    if (address.length <= 12) return address;
+    return '${address.substring(0, 6)}...${address.substring(address.length - 4)}';
+  }
+
+  Future<void> _connectWithMetaMask() async {
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      await authProvider.loginWithMetaMask(_selectedRole, _walletService);
+      
+      if (authProvider.isAuthenticated && mounted) {
+        context.go('/dashboard');
+      }
+    } catch (e) {
+      print('UI: MetaMask login failed - $e');
+    }
   }
 
   Future<void> _connectWithPresetAccount() async {

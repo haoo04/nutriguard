@@ -1,6 +1,10 @@
 # NutriGuard - 区块链食品追溯系统
 
 <p align="center">
+  <strong>中文</strong> | <a href="README_EN.md">English</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Blockchain-Ethereum-blue?style=flat-square" alt="Blockchain">
   <img src="https://img.shields.io/badge/Frontend-Flutter-blue?style=flat-square" alt="Frontend">
   <img src="https://img.shields.io/badge/Smart%20Contract-Solidity-red?style=flat-square" alt="Smart Contract">
@@ -372,20 +376,6 @@ flutter test
    - 支持食品安全法规要求
    - 完整的审计追踪
 
-## 🚧 发展路线图
-
-### 版本 1.1.0 (计划中)
-- [ ] 支持更多区块链网络（Polygon, BSC）
-- [ ] 集成IoT传感器自动数据采集
-- [ ] 多语言支持
-- [ ] 高级数据分析和报告功能
-
-### 版本 1.2.0 (规划中)
-- [ ] 供应链金融集成
-- [ ] AI驱动的质量预测
-- [ ] 跨链互操作性
-- [ ] 企业级管理控制台
-
 ## 🤝 贡献指南
 
 我们欢迎社区贡献！请遵循以下步骤：
@@ -399,12 +389,6 @@ flutter test
 ## 📄 许可证
 
 本项目采用 MIT 许可证。详情请参阅 [LICENSE](LICENSE) 文件。
-
-## 📞 联系我们
-
-- **项目维护者**: NutriGuard Team
-- **邮箱**: contact@nutriguard.com
-- **官网**: https://nutriguard.com
 
 ## 🙏 致谢
 

@@ -7,6 +7,7 @@ import '../models/supplier_model.dart';
 import '../models/quality_model.dart';
 import '../models/feedback_model.dart';
 import '../models/user_model.dart';
+import 'enhanced_wallet_service.dart';
 
 class BlockchainService {
   static final BlockchainService _instance = BlockchainService._internal();
@@ -478,27 +479,64 @@ class BlockchainService {
     _userAddress = credentials.address;
   }
 
+  void setExternalWalletAddress(String address) {
+    _credentials = null;
+    _userAddress = EthereumAddress.fromHex(address);
+  }
+
   EthereumAddress? get userAddress => _userAddress;
+
+  String? get _activeWalletAddress {
+    return _credentials?.address.hex ?? EnhancedWalletService().connectedAddress;
+  }
+
+  Future<String> _sendWriteTransaction({
+    required ContractFunction function,
+    required String functionName,
+    required List<dynamic> parameters,
+  }) async {
+    final credentials = _credentials;
+    if (credentials != null) {
+      final transaction = Transaction.callContract(
+        contract: _contract,
+        function: function,
+        parameters: parameters,
+      );
+
+      return _client.sendTransaction(
+        credentials,
+        transaction,
+        chainId: int.parse(AppConfig.ethereumChainId),
+      );
+    }
+
+    final walletService = EnhancedWalletService();
+    final address = walletService.connectedAddress;
+    if (address == null) {
+      throw Exception('No credentials set and no MetaMask wallet connected');
+    }
+
+    _userAddress = EthereumAddress.fromHex(address);
+    return walletService.writeContract(
+      deployedContract: _contract,
+      functionName: functionName,
+      parameters: parameters,
+    );
+  }
 
   // User registration
   Future<String> registerUser(UserRole role) async {
-    if (_credentials == null) throw Exception('No credentials set');
+    final contractRoleIndex = role == UserRole.consumer ? 0 : 1;
 
     print('🔧 BlockchainService: Registering user with role: ${role.name}');
-    print('🔧 BlockchainService: User address: ${_credentials!.address}');
-    print('🔧 BlockchainService: Role index: ${role.index}');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
-      function: _registerUser,
-      parameters: [BigInt.from(role.index)],
-    );
+    print('🔧 BlockchainService: User address: $_activeWalletAddress');
+    print('🔧 BlockchainService: Role index: $contractRoleIndex');
 
     print('🔧 BlockchainService: Sending registerUser transaction...');
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
+    final txHash = await _sendWriteTransaction(
+      function: _registerUser,
+      functionName: 'registerUser',
+      parameters: [BigInt.from(contractRoleIndex)],
     );
 
     print('🔧 BlockchainService: RegisterUser transaction sent, hash: $txHash');
@@ -546,36 +584,33 @@ class BlockchainService {
     required String contactInfo,
     required String certifications,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
     print('🔧 BlockchainService: Registering supplier...');
-    print('🔧 BlockchainService: Caller address: ${_credentials!.address}');
+    print('🔧 BlockchainService: Caller address: $_activeWalletAddress');
     print('🔧 BlockchainService: Supplier name: $name');
     
     // First check if user is registered and is merchant
     try {
-      final isRegistered = await isUserRegistered(_credentials!.address.hex);
+      final activeAddress = _activeWalletAddress;
+      if (activeAddress == null) {
+        throw Exception('No active wallet address');
+      }
+
+      final isRegistered = await isUserRegistered(activeAddress);
       print('🔧 BlockchainService: User is registered: $isRegistered');
       
       if (isRegistered) {
-        final userRole = await getUserRole(_credentials!.address.hex);
+        final userRole = await getUserRole(activeAddress);
         print('🔧 BlockchainService: User role: ${userRole.name}');
       }
     } catch (e) {
       print('🔧 BlockchainService: Error checking user status: $e');
     }
 
-    final transaction = Transaction.callContract(
-      contract: _contract,
-      function: _registerSupplier,
-      parameters: [name, contactInfo, certifications],
-    );
-
     print('🔧 BlockchainService: Sending registerSupplier transaction...');
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
+    final txHash = await _sendWriteTransaction(
+      function: _registerSupplier,
+      functionName: 'registerSupplier',
+      parameters: [name, contactInfo, certifications],
     );
 
     print('🔧 BlockchainService: RegisterSupplier transaction sent, hash: $txHash');
@@ -603,11 +638,9 @@ class BlockchainService {
     required double weight,
     required String ipfsHash,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _registerIngredient,
+      functionName: 'registerIngredient',
       parameters: [
         name,
         category,
@@ -625,12 +658,6 @@ class BlockchainService {
       ],
     );
 
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
-    );
-
     return txHash;
   }
 
@@ -644,11 +671,9 @@ class BlockchainService {
     required String ipfsHash,
     required QualityRule qualityRule,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _createProduct,
+      functionName: 'createProduct',
       parameters: [
         name,
         description,
@@ -667,12 +692,6 @@ class BlockchainService {
       ],
     );
 
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
-    );
-
     return txHash;
   }
 
@@ -683,11 +702,9 @@ class BlockchainService {
     required double weight,
     required double phValue,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _submitProductionData,
+      functionName: 'submitProductionData',
       parameters: [
         BigInt.from(productId),
         BigInt.from(temperature.round()),
@@ -697,12 +714,6 @@ class BlockchainService {
       ],
     );
 
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
-    );
-
     return txHash;
   }
 
@@ -710,18 +721,10 @@ class BlockchainService {
     required int productId,
     required String qrCodeHash,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _generateQRCode,
+      functionName: 'generateQRCode',
       parameters: [BigInt.from(productId), qrCodeHash],
-    );
-
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
     );
 
     return txHash;
@@ -731,18 +734,10 @@ class BlockchainService {
     required int ingredientId,
     required String reason,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _markIngredientContaminated,
+      functionName: 'markIngredientContaminated',
       parameters: [BigInt.from(ingredientId), reason],
-    );
-
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
     );
 
     return txHash;
@@ -752,31 +747,26 @@ class BlockchainService {
     required int ingredientId,
     required String reason,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _initiateRecall,
+      functionName: 'initiateRecall',
       parameters: [BigInt.from(ingredientId), reason],
-    );
-
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
     );
 
     return txHash;
   }
 
   Future<bool> verifyProduct(int productId) async {
-    final result = await _client.call(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _verifyProduct,
-      params: [BigInt.from(productId)],
+      functionName: 'verifyProduct',
+      parameters: [BigInt.from(productId)],
     );
 
-    return result.first as bool;
+    await waitForTransactionReceipt(txHash);
+
+    final product = await getProductInfo(productId);
+    return product.isValid;
   }
 
   // Consumer functions
@@ -784,18 +774,10 @@ class BlockchainService {
     required int productId,
     required String email,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _registerForProductAlerts,
+      functionName: 'registerForProductAlerts',
       parameters: [BigInt.from(productId), email],
-    );
-
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
     );
 
     return txHash;
@@ -806,22 +788,14 @@ class BlockchainService {
     required String feedbackText,
     required int rating,
   }) async {
-    if (_credentials == null) throw Exception('No credentials set');
-
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final txHash = await _sendWriteTransaction(
       function: _submitFeedback,
+      functionName: 'submitFeedback',
       parameters: [
         BigInt.from(productId),
         feedbackText,
         BigInt.from(rating),
       ],
-    );
-
-    final txHash = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: int.parse(AppConfig.ethereumChainId),
     );
 
     return txHash;
@@ -905,7 +879,8 @@ class BlockchainService {
       params: [EthereumAddress.fromHex(address)],
     );
 
-    return UserRole.values[result.first.toInt()];
+    final contractRoleIndex = result.first.toInt();
+    return contractRoleIndex == 0 ? UserRole.consumer : UserRole.merchant;
   }
 
   Future<bool> isUserRegistered(String address) async {
@@ -979,16 +954,10 @@ class BlockchainService {
   }
 
   Future<String> markFeedbackAsProcessed(int feedbackId) async {
-    final transaction = Transaction.callContract(
-      contract: _contract,
+    final result = await _sendWriteTransaction(
       function: _markFeedbackAsProcessed,
+      functionName: 'markFeedbackAsProcessed',
       parameters: [BigInt.from(feedbackId)],
-    );
-
-    final result = await _client.sendTransaction(
-      _credentials!,
-      transaction,
-      chainId: 1337,
     );
 
     return result;

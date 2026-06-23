@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/blockchain_provider.dart';
@@ -6,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/ingredient_model.dart';
 import '../../models/product_model.dart';
 import '../../models/quality_model.dart';
+import '../../services/pinata_ipfs_service.dart';
 
 class CreateProductScreen extends StatefulWidget {
   const CreateProductScreen({super.key});
@@ -33,6 +37,8 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
   ProductCategory _selectedCategory = ProductCategory.mainFood;
   List<IngredientModel> _selectedIngredients = [];
   List<IngredientModel> _availableIngredients = [];
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   bool _isLoading = false;
   bool _isSubmitting = false;
 
@@ -117,6 +123,8 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
                     _buildHeaderSection(),
                     const SizedBox(height: 24),
                     _buildBasicInfoSection(),
+                    const SizedBox(height: 24),
+                    _buildImageUploadSection(),
                     const SizedBox(height: 24),
                     _buildIngredientsSection(),
                     const SizedBox(height: 24),
@@ -261,6 +269,80 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
                           ],
                         ),
                       ),
+    );
+  }
+
+  Widget _buildImageUploadSection() {
+    final hasImage = _selectedImageBytes != null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.image_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Optional IPFS Image',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Select a product image to upload to Pinata IPFS before writing the product on-chain.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (hasImage) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  _selectedImageBytes!,
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _selectedImage?.name ?? 'Selected image',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting ? null : _pickImage,
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(hasImage ? 'Change Image' : 'Choose Image'),
+                  ),
+                ),
+                if (hasImage) ...[
+                  const SizedBox(width: 12),
+                  IconButton.outlined(
+                    onPressed: _isSubmitting ? null : _clearImage,
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Remove image',
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -810,8 +892,7 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
         maxPH: maxPH,
       );
       
-      // Mock IPFS hash (in real implementation, upload to IPFS)
-      final ipfsHash = 'QmHash${DateTime.now().millisecondsSinceEpoch}';
+      final ipfsHash = await _resolveIpfsHash();
 
       await blockchainProvider.blockchainService.createProduct(
         name: _nameController.text.trim(),
@@ -846,5 +927,45 @@ class _CreateProductScreenState extends State<CreateProductScreen> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+
+    if (image == null) {
+      return;
+    }
+
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+
+    setState(() {
+      _selectedImage = image;
+      _selectedImageBytes = bytes;
+    });
+  }
+
+  void _clearImage() {
+    setState(() {
+      _selectedImage = null;
+      _selectedImageBytes = null;
+    });
+  }
+
+  Future<String> _resolveIpfsHash() async {
+    final image = _selectedImage;
+    if (image == null) {
+      return '';
+    }
+
+    return PinataIpfsService().uploadImage(
+      image: image,
+      name: 'product-${_upcController.text.trim()}-${DateTime.now().millisecondsSinceEpoch}',
+    );
   }
 }
